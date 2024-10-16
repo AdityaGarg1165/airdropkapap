@@ -20,6 +20,15 @@ body{
 .stop{
     animation: none;
 }
+
+
+.card{
+    box-shadow: 1px 1px 10px rgb(12, 12, 12);
+    margin-top: 12vh;
+}
+
+
+
 @keyframes pulse {
     from{
     

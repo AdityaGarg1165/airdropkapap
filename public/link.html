@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="../socket.io/socket.io.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <title>Document</title>
+</head>
+<body class="pl-4">
+    <main class="h-full w-full flex justify-center items-center flex-col">
+        <form action="" id="form">
+            <input type="file" id="fileInput" class="hidden" >
+        </form>
+        <h1 class="font-mono text-2xl mt-12">The link can be used only one time and will expire after 1 hour</h1>
+                <div class="flex flex-col justify-center">
+                    <h1 class="font-mono translate-y-16 text-3xl  ml-16">Send</h1>
+                    <div class="card w-60 rounded-lg h-60 flex justify-center items-center">
+                        <div class="w-48 rounded-lg h-48 border-2 border-black border-dashed flex justify-center items-center flex-col">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-12">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                            </svg>                      
+                            <h1 class="font-mono text-xl ">Upload File</h1>
+                        </div>
+                    </div>
+                </div>
+                
+            </div>
+                <div onclick="copy()" id="link" class="link bg-[#b5b4b9] p-2 h-10 rounded-2xl  absolute left-[50%] -translate-x-[50%] bottom-[20vh] hidden">
+                    <h1 class="min-w-[50vw] flex" id="linkText"></h1>
+                    <svg onclick="copy()" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="white" class="size-7 -mt-[0.1rem] ml-4 bg-black p-1 rounded-md cursor-pointer">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184" />
+                    </svg>
+                    
+            </div>
+
+        </div>
+    </main>
+    <script>
+        let link;
+        const form = document.getElementById("form");
+        const socket = io("/");  // Adjust based on your server setup
+        const fileInput = document.getElementById("fileInput");
+        let id;
+        let receivedChunks = [];
+
+        socket.on("selfId", data => id = data);
+
+        function selectFile() {
+            fileInput.click();
+        }
+
+        function copy(){
+            navigator.clipboard.writeText(link).then(x=>{
+                console.log(x)
+            })
+        }
+
+        fileInput.addEventListener('change', () => {
+            const CHUNK_SIZE = 105536; // Size of each chunk
+            const file = fileInput.files[0];
+
+            if (file) {
+                const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+                let currentChunk = 0;
+
+                const sendChunk = () => {
+                    const start = currentChunk * CHUNK_SIZE;
+                    const end = Math.min(file.size, start + CHUNK_SIZE);
+                    const chunk = file.slice(start, end);
+
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        socket.emit('linkchunks', {
+                            fileName: file.name,
+                            fileType: file.type,
+                            totalChunks: totalChunks,
+                            currentChunk: currentChunk,
+                            chunkData: e.target.result
+                        });
+
+                        currentChunk++;
+                        if (currentChunk < totalChunks) {
+                            sendChunk(); // Send the next chunk
+                        } else {
+                            socket.emit("linkchunks", {
+                                fileName: file.name,
+                                fileType: "uc",
+                                totalChunks: "uc",
+                                currentChunk: "uc",
+                                chunkData: "uc",
+                                code:parseInt(Math.random() * Date.now()).toString().substring(2,6)
+                            });
+                            console.log('File upload completed.');
+                            socket.emit('fileComplete', { fileName: file.name });
+                            socket.on('uploadSuccess', () => {
+
+                                link = `https://https://airdropkapap.up.railway.app/download/${id}${file.name}`
+                                document.getElementById("link").classList.remove("hidden")
+                                document.getElementById("link").classList.add("flex")
+                                document.getElementById("linkText").innerText = link
+                            });
+                        }
+                    };
+
+                    reader.readAsArrayBuffer(chunk);
+                };
+
+                sendChunk(); 
+            }
+        });
+
+        function moveFocus(event) {
+            const currentInput = event.target;
+            const nextInput = currentInput.nextElementSibling;
+            if (currentInput.value.length >= 1 && nextInput) {
+                nextInput.focus();
+            }
+        }
+
+        window.onload = function() {
+            const inputs = document.querySelectorAll('input[type="text"]');
+            inputs.forEach(input => {
+                input.addEventListener('input', moveFocus);
+            });
+        };
+    </script>
+</body>
+</html>
