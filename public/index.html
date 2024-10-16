@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <title>Socket.io File Upload</title>
+    <style>
+        body { font-family: Arial, sans-serif; }
+        #messages { border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; height: 300px; overflow-y: scroll; }
+        #messageInput { width: 80%; }
+        .message { margin: 5px 0; }
+        .user-message { color: blue; }
+        /* Styles for custom button */
+        #uploadButton {
+            background-color: #7731D8; /* Your custom button color */
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        #uploadButton:hover {
+            background-color: #5a25a2; /* Darker shade on hover */
+        }
+        #fileInput {
+            display: none; /* Hide the file input */
+        }
+    </style>
+</head>
+<body class="flex flex-col justify-center items-center">
+    <input type="file" id="fileInput" />
+    <!-- <button id="uploadButton">Upload File</button> Custom Upload Button -->
+    <div class="w-[30rem] h-[30rem] rounded-full circle border absolute mt-20 border-gray-500"></div>
+    <div class="w-[50rem] h-[50rem] rounded-full circle2 absolute border border-gray-500"></div>
+    <div class="w-[15rem] h-[15rem] rounded-full circle3 absolute border border-gray-500"></div>
+    <img src="/image.png" width="100" class="bottom-6 left-[50%] -translate-x-[50%] ml-3 absolute" alt="">
+    <h1 class="text-2xl font-mono absolute bottom-8 ml-9">AirDrop Ka Papa</h1>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+
+        // document.getElementById('uploadButton').onclick = function() {
+        //     document.getElementById('fileInput').click();
+        // };
+
+        document.getElementById('fileInput').onchange = function() {
+            uploadFile(); // 
+        };
+
+        function uploadFile() {
+            const fileInput = document.getElementById("fileInput");
+            const CHUNK_SIZE = 105536; // 64KB chunk size
+
+            if (fileInput.files.length > 0) {
+                const file = fileInput.files[0];
+                const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+                let currentChunk = 0;
+
+                // Function to send a chunk of the file
+                const sendChunk = () => {
+                    const start = currentChunk * CHUNK_SIZE;
+                    const end = Math.min(file.size, start + CHUNK_SIZE);
+                    const chunk = file.slice(start, end);
+
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        socket.emit('chunks', {
+                            fileName: file.name,
+                            fileType: file.type,
+                            totalChunks: totalChunks,
+                            currentChunk: currentChunk,
+                            chunkData: e.target.result
+                        });
+                        currentChunk++;
+
+                        if (currentChunk < totalChunks) {
+                            sendChunk(); // Send the next chunk
+                        } else {
+                            socket.emit("chunks", {
+                                fileName: file.name,
+                                fileType: "uc",
+                                totalChunks: "uc",
+                                currentChunk: "uc",
+                                chunkData: "uc"
+                            });
+                            console.log('File upload completed.');
+                            socket.emit('fileUploadComplete', { fileName: file.name });
+                        }
+                    };
+
+                    reader.readAsArrayBuffer(chunk); // Read the chunk as an ArrayBuffer
+                };
+
+                // Start sending the first chunk
+                sendChunk();
+            }
+        }
+
+        socket.on("peer",(id)=>{
+            const div = document.createElement('div');
+            div.className = 'peer bg-black rounded-full p-2';
+            div.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="white" class="size-10">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 17.25v1.007a3 3 0 0 1-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0 1 15 18.257V17.25m6-12V15a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 15V5.25m18 0A2.25 2.25 0 0 0 18.75 3H5.25A2.25 2.25 0 0 0 3 5.25m18 0V12a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 12V5.25" />
+                </svg>
+            `;
+            div.id = id
+            div.style.position = "absolute"
+            div.style.marginLeft = "4vh"
+            div.style.transform = "translateY(-50%)"
+            div.style.top = "50%"
+            div.onclick = () => document.getElementById("fileInput").click()
+            document.querySelector(".circle").classList.add("hidden")
+            document.querySelector(".circle2").classList.add("hidden")
+            document.querySelector(".circle3").classList.add("hidden")
+            document.body.appendChild(div);
+        });
+
+        socket.on('progress', (data) => {
+            console.log(`Upload progress: ${data.progress}%`);
+        });
+
+        socket.on("disconnected",(id)=>{
+            const div = document.getElementById(id)
+            document.body.removeChild(div)
+        });
+
+        socket.on('fileSaved', (data) => {
+            console.log(`File saved on server: ${data.fileName}`);
+        });
+
+        let receivedChunks = []
+        socket.on('receiveChunks', (data) => {
+            receivedChunks.push(new Uint8Array(data.chunkData))
+            if (data.currentChunk + 1 === data.totalChunks) {
+                console.log('All chunks received.');
+                const fileBlob = new Blob(receivedChunks, {type:data.fileType});
+                const downloadLink = document.createElement("a");
+                downloadLink.href = URL.createObjectURL(fileBlob);
+                downloadLink.download = data.fileName;
+                downloadLink.click();
+                receivedChunks = [];
+            }
+        });
+    </script>
+</body>
+</html>
