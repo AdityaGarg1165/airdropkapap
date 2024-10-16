@@ -188,7 +188,7 @@ io.on('connection', (socket) => {
     })
 
 
-const CHUNK_SIZE = 695450
+const CHUNK_SIZE = 65536
 socket.on("requestFile",(data)=>{
     const filePath = path.join(__dirname, '3_Idiots.mp4');
     const fileStat = fs.statSync(filePath);
