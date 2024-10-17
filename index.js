@@ -75,6 +75,7 @@ const users = {};
 io.on('connection', (socket) => {
     console.log('A user connected:', socket.id);
     const ipAddress = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address;
+    console.log(ipAddress)
 
     if (!users[ipAddress]) {
         users[ipAddress] = [socket.id];
